@@ -3,7 +3,10 @@ import pandas as pd
 from alpha_vantage.timeseries import TimeSeries
 import os
 
-def fetch_stock_data(symbol: str, api_key: str, interval: str = 'daily', outputsize: str = 'compact') -> pd.DataFrame:
+
+from credentials import ALPHAVANTAGE_API_KEY
+
+def fetch_stock_data(symbol: str, interval: str = 'daily', outputsize: str = 'compact') -> pd.DataFrame:
     """
     Fetches historical stock data from Alpha Vantage and returns it as a pandas DataFrame.
 
@@ -17,7 +20,7 @@ def fetch_stock_data(symbol: str, api_key: str, interval: str = 'daily', outputs
     - pd.DataFrame: A pandas DataFrame containing the stock data.
     """
 
-    ts = TimeSeries(key=api_key, output_format='pandas')
+    ts = TimeSeries(key=ALPHAVANTAGE_API_KEY, output_format='pandas')
     
     if interval == 'daily':
         data, _ = ts.get_daily(symbol=symbol, outputsize=outputsize)
@@ -32,6 +35,7 @@ def fetch_stock_data(symbol: str, api_key: str, interval: str = 'daily', outputs
     data.sort_index(inplace=True)
     
     return data
+
 
 def save_data(df: pd.DataFrame, local_path: str) -> None:
     """
@@ -60,21 +64,24 @@ def load_csv(local_path: str) -> pd.DataFrame:
     
     return df
 
+
+
+# Example usage
 if __name__ == "__main__":
     
-    # Example usage
-    api_key = "68Y8PYJ6FJR2YQ55"
+    
     symbol = "AAPL"
     interval = 'daily'
 
-    relative_path = '../../data/AAPL.csv'
+    # Fetch the data
+    df = fetch_stock_data(symbol, interval)
+
+    # Save to CSV
+
+    relative_path = '../../data/raw/AAPL.csv'
     dirname = os.path.dirname(__file__)
     local_path = os.path.join(dirname, relative_path)
-
-    # Fetch the data
-    df = fetch_stock_data(symbol, api_key, interval)
     
-    # Save to CSV
     save_data(df, local_path)
 
     # Load from CSV and print the first few rows
