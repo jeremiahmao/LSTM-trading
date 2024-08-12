@@ -1,13 +1,13 @@
 import pandas as pd
 import requests
 from datetime import datetime
-from util.credentials import ALPHAVANTAGE_API_KEY
+from constants.credentials import ALPHAVANTAGE_API_KEY
 
 import time # for fetching historical news data
 
-#for testing
 import os
 from matplotlib import pyplot as plt
+from constants.constants import TRAINING_SYMBOLS
 
 def fetch_candles_adjusted_data(symbol: str, interval: str = 'daily', outputsize: str = 'compact') -> pd.DataFrame:
     """
@@ -214,20 +214,20 @@ def load_csv(local_path: str) -> pd.DataFrame:
 
 
 #generating data for this project
+
+
 if __name__ == "__main__":
 
     dirname = os.path.dirname(__file__)
-    
-    symbols = ['AAPL']
 
-    start_date = datetime(2024, 8, 8)
+    start_date = datetime(2024, 7, 8)
     end_date = datetime(2024, 8, 10)
 
-    for s in symbols:
+    for s in TRAINING_SYMBOLS:
         print(f"\nStarting data generation for {s}.")
 
         # Candles Data Saved
-        candles_relative_path = '../../data/raw/' + s + '_c.csv'
+        candles_relative_path = '../data/raw/' + s + '_c.csv'
         candles_local_path = os.path.join(dirname, candles_relative_path)
 
         if os.path.isfile(candles_local_path):
@@ -241,7 +241,7 @@ if __name__ == "__main__":
             save_data(filtered_candles, candles_local_path)
         
         # News Sentiments Data Saved
-        sentiments_relative_path = '../../data/raw/' + s + '_s.csv'
+        sentiments_relative_path = '../data/raw/' + s + '_s.csv'
         sentiments_local_path = os.path.join(dirname, sentiments_relative_path)
 
         if os.path.isfile(sentiments_local_path):
@@ -253,7 +253,7 @@ if __name__ == "__main__":
             save_data(sentiments, sentiments_local_path)
 
         # Merged Dataset Saved
-        merged_relative_path = '../../data/interim/' + s + '_merged.csv'
+        merged_relative_path = '../data/interim/' + s + '_merged.csv'
         merged_local_path = os.path.join(dirname, merged_relative_path)
 
         if os.path.isfile(merged_local_path):
