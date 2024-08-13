@@ -1,5 +1,9 @@
-#trying to contain stocks that follow a normal growth and normal variation over time (not as high volatility), additionally IPO'd before 2012, since that is when we will start our data collection
+TIME_STEP = 120
+
+#trying to contain stocks that follow a normal growth and normal variation over time (not as high volatility), additionally IPO'd before 2013 June 1, since that is when we will start our data collection
+#data collection for training data will end 2023 June 1
 TRAINING_SYMBOLS = [
+    # High-quality stocks with normal growth and variation
     "AAPL",   # Apple Inc.
     "ABBV",   # AbbVie Inc. (spun off from Abbott Laboratories in January 2013)
     "ACN",    # Accenture plc
@@ -49,5 +53,36 @@ TRAINING_SYMBOLS = [
     "VZ",     # Verizon Communications Inc.
     "WBA",    # Walgreens Boots Alliance Inc.
     "WFC",    # Wells Fargo & Co.
-    "WMT"     # Walmart Inc.
+    "WMT",    # Walmart Inc.
+
+    # Consistently poorly performing stocks
+    "CWH",    # Camping World Holdings Inc.
+    "FUBO",   # fuboTV Inc.
+    "GEO",    # GEO Group Inc.
+    "GPRO",   # GoPro Inc.
+    "MARA",   # Marathon Digital Holdings Inc.
+    "MTCH",   # Match Group Inc.
+    "NOK",    # Nokia Corporation
+    "NTR",    # Nutrien Ltd.
+    "SAVA",   # Cassava Sciences Inc.
+    "TWNK",   # Hostess Brands Inc.
+
+    # Meme stocks
+    "GME",    # GameStop Corp.
+    "AMC",    # AMC Entertainment Holdings Inc.
+    "BB",     # BlackBerry Limited
+    "WISH",   # ContextLogic Inc.
+    "PLTR",   # Palantir Technologies Inc.
+
+    # Cyclic stocks
+    "GM",     # General Motors Company
+    "DHI",    # D.R. Horton, Inc. (homebuilder)
+    "LEN",    # Lennar Corporation (homebuilder)
+    "NUE",    # Nucor Corporation (steel production)
+    "X",      # United States Steel Corporation
+    "DE",     # Deere & Company (agricultural equipment)
+    "PCAR",   # PACCAR Inc. (truck manufacturer)
+    "ETN"     # Eaton Corporation plc (industrial products)
 ]
+
+TEST_SYMBOLS = ['NVDA']

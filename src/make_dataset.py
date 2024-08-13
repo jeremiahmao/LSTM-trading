@@ -7,7 +7,58 @@ import time # for fetching historical news data
 
 import os
 from matplotlib import pyplot as plt
-from constants.constants import TRAINING_SYMBOLS
+from constants.constants import TRAINING_SYMBOLS, TEST_SYMBOLS
+
+def test_tickers(tickers: list, interval: str = 'daily'):
+    """
+    Test a list of ticker symbols to check for invalid inputs and API responses.
+
+    Parameters:
+        tickers (list): A list of stock ticker symbols to test.
+        interval (str): The interval between data points in the time series.
+        outputsize (str): The amount of data to return.
+
+    Returns:
+        dict: A dictionary with ticker symbols as keys and error messages as values, if any.
+    """
+    base_url = 'https://www.alphavantage.co/query'
+    invalid_tickers = set()
+    
+    # Determine the correct function based on interval
+    if interval == 'daily':
+        function = 'TIME_SERIES_DAILY_ADJUSTED'
+    elif interval == 'weekly':
+        function = 'TIME_SERIES_WEEKLY_ADJUSTED'
+    elif interval == 'monthly':
+        function = 'TIME_SERIES_MONTHLY_ADJUSTED'
+    else:
+        raise ValueError(f"Invalid interval: {interval}. Choose from 'daily', 'weekly', or 'monthly'.")
+    
+    for ticker in tickers:
+        # Parameters for the API request
+        params = {
+            'function': function,
+            'symbol': ticker,
+            'outputsize': 'compact',
+            'apikey': ALPHAVANTAGE_API_KEY
+        }
+        
+        # Send the request
+        response = requests.get(base_url, params=params)
+        
+        # Check if the request was successful
+        if response.status_code != 200:
+            invalid_tickers[ticker] = f"Error fetching data: {response.status_code}"
+            continue
+        
+        # Parse the JSON response
+        data = response.json()
+        
+        # Check for invalid inputs in the response
+        if "Information" in data and "Invalid inputs" in data["Information"]:
+            invalid_tickers.add(ticker)
+    
+    return invalid_tickers
 
 def fetch_candles_adjusted_data(symbol: str, interval: str = 'daily', outputsize: str = 'compact') -> pd.DataFrame:
     """
@@ -220,10 +271,12 @@ if __name__ == "__main__":
 
     dirname = os.path.dirname(__file__)
 
-    start_date = datetime(2024, 7, 8)
-    end_date = datetime(2024, 8, 10)
+    start_date = datetime(2013, 6, 1)
+    end_date = datetime(2023, 6, 1)
 
-    for s in TRAINING_SYMBOLS:
+    #Code to test that all tickers are valid in Alphavantage:  print(test_tickers(TRAINING_SYMBOLS))
+
+    for s in TEST_SYMBOLS:
         print(f"\nStarting data generation for {s}.")
 
         # Candles Data Saved
