@@ -18,78 +18,80 @@ def create_lstm_model(input_shape, lstm_units, dropout_rate, num_layers):
     model.compile(optimizer='adam', loss='mse')
     return model
 
-def detour_foraging(rabbits, search_space, T, t):
-    updated_rabbits = []
+def detour_foraging(rabbit, search_space, T):
     d = len(search_space)  # Dimension of the problem
     
-    for i in range(len(rabbits)):
-        x_i = np.array(list(rabbits[i].values()))
-        
-        # Calculate the running length L
-        e_t = np.linalg.norm(x_i - np.mean(x_i))  # Euclidean distance of current position from mean
-        L = (np.exp(-e_t / T)**2) * np.sin(2 * np.pi * np.random.rand())
-        
-        # Calculate R
-        R = L * np.random.randint(0, 2, size=d)
-        
-        # Mapping vector c
-        c = np.zeros(d)
-        g = np.random.permutation(d)
-        l = np.ceil(np.random.rand() * d).astype(int)
-        c[g[:l]] = 1
-        
-        # Perturbation term n1
-        n1 = np.random.normal(0, 1, d)
-        perturbation = R * (np.mean(x_i) - x_i) + 0.5 * (0.05 + np.random.rand()) * n1
-        
-        # Update position v_i
-        v_i = x_i + perturbation
-        
-        # Clip the new position to the search space
-        v_i = np.clip(v_i, [v[0] for v in search_space.values()], [v[1] for v in search_space.values()])
-        updated_rabbits.append(dict(zip(search_space.keys(), v_i)))
+    x_i = np.array(list(rabbit.values()))
     
-    return updated_rabbits
+    # Calculate the running length L
+    e_t = np.linalg.norm(x_i - np.mean(x_i))  # Euclidean distance of current position from mean
+    L = (np.exp(-e_t / T)**2) * np.sin(2 * np.pi * np.random.rand())
+    
+    # Calculate R
+    R = L * np.random.randint(0, 2, size=d)
+    
+    # Mapping vector c
+    c = np.zeros(d)
+    g = np.random.permutation(d)
+    l = np.ceil(np.random.rand() * d).astype(int)
+    c[g[:l]] = 1
+    
+    # Perturbation term n1
+    n1 = np.random.normal(0, 1, d)
+    perturbation = R * (np.mean(x_i) - x_i) + 0.5 * (0.05 + np.random.rand()) * n1
+    
+    # Update position v_i
+    v_i = x_i + perturbation
+    
+    # Clip the new position to the search space
+    v_i = np.clip(v_i, [v[0] for v in search_space.values()], [v[1] for v in search_space.values()])
+    
+    return dict(zip(search_space.keys(), v_i))
 
-def random_hiding(rabbits, search_space, T, t, d):
-    updated_rabbits = []
+def random_hiding(rabbit, search_space, T, t, d):
+    x_i = np.array(list(rabbit.values()))
     
-    for i in range(len(rabbits)):
-        x_i = np.array(list(rabbits[i].values()))
-        
-        # Calculate the hiding parameter H
-        H = (T - t + 1) / T * np.random.rand()
-        
-        # Generate burrows
-        burrows = []
-        for _ in range(d):
-            # Random perturbation in each dimension
-            burrow = x_i + H * (np.random.rand(len(search_space)) - 0.5) * 2
-            burrows.append(dict(zip(search_space.keys(), np.clip(burrow, [v[0] for v in search_space.values()], [v[1] for v in search_space.values()]))))
-        
-        # Select a random burrow
-        selected_burrow = random.choice(burrows)
-        
-        # Generate the random number r4 and r5
-        r4 = np.random.rand()
-        r5 = np.random.rand()
-        
-        # Generate the mapping vector gr
-        gr = np.zeros(d)
-        j = int(np.ceil(r5 * d)) - 1  # Index for the selected burrow
-        gr[j] = 1
-        
-        # Calculate the random factor R
-        R = np.random.rand() * r4
-        
-        # Update position v_i
-        b_i_r = x_i + H * gr
-        v_i = x_i + R * (b_i_r - x_i)
-        v_i = np.clip(v_i, [v[0] for v in search_space.values()], [v[1] for v in search_space.values()])
-        
-        updated_rabbits.append(dict(zip(search_space.keys(), v_i)))
+    # Generate the random number r4
+    r4 = np.random.rand()
     
-    return updated_rabbits
+    # Calculate the hiding parameter H
+    H = (T - t + 1) / T * r4
+    
+    burrows = []
+    for j in range(d):
+        # Mapping vector g
+        g = np.zeros(d)
+        g[j] = 1
+        
+        # Perturbation term n2
+        n2 = np.random.normal(0, 1, len(search_space))
+        
+        # Calculate burrow position
+        burrow = x_i + H * g * x_i + 0.5 * n2
+        burrow = np.clip(burrow, [v[0] for v in search_space.values()], [v[1] for v in search_space.values()])
+        
+        burrows.append(dict(zip(search_space.keys(), burrow)))
+    
+    # Select a random burrow
+    selected_burrow = random.choice(burrows)
+    
+    # Generate the random number r5
+    r5 = np.random.rand()
+    
+    # Generate the mapping vector gr
+    gr = np.zeros(d)
+    j = int(np.ceil(r5 * d)) - 1  # Index for the selected burrow
+    gr[j] = 1
+    
+    # Calculate the random factor R
+    R = np.random.rand() * r4
+    
+    # Update position v_i using the selected burrow
+    b_i_r = np.array(list(selected_burrow.values())) + H * gr
+    v_i = x_i + R * (b_i_r - x_i)
+    v_i = np.clip(v_i, [v[0] for v in search_space.values()], [v[1] for v in search_space.values()])
+    
+    return dict(zip(search_space.keys(), v_i))
 
 def artificial_rabbits_optimization(objective_function, search_space, num_rabbits=10, iterations=20, d=5, detour_threshold=1):
     # Initialize rabbits' positions
@@ -103,30 +105,37 @@ def artificial_rabbits_optimization(objective_function, search_space, num_rabbit
     best_rabbit = None
     best_fitness = float('inf')
     
+    # Cache for storing previously evaluated positions
+    fitness_cache = {}
+    
     for t in range(iterations):
-        fitnesses = [objective_function(list(rabbit.values())) for rabbit in rabbits]
-        min_fitness = min(fitnesses)
-        best_rabbit = rabbits[fitnesses.index(min_fitness)]
-        best_fitness = min_fitness
-        
-        # Calculate energy factor A
-        A = 4 * (1 - t / iterations) * np.log(1 / num_rabbits)
-        
-        # Apply detour foraging or random hiding based on energy factor
-        if A > detour_threshold:
-            rabbits = detour_foraging(rabbits, search_space, iterations, t)
-        else:
-            rabbits = random_hiding(rabbits, search_space, iterations, t, d)
-        
-        # Update positions based on fitness
         for i in range(num_rabbits):
-            x_i = np.array(list(rabbits[i].values()))
-            fitness_current = objective_function(list(x_i))
+            x_i = rabbits[i]
             
-            # Choose the best between current and new position
-            v_i = np.array(list(rabbits[i].values()))
-            fitness_candidate = objective_function(list(v_i))
+            # Calculate energy factor A
+            A = 4 * (1 - t / iterations) * np.log(1 / num_rabbits)
+            
+            # Apply detour foraging or random hiding based on energy factor
+            if A > detour_threshold:
+                v_i = detour_foraging(x_i, search_space, iterations, t)
+            else:
+                v_i = random_hiding(x_i, search_space, iterations, t, d)
+            
+            # Update positions based on fitness
+            fitness_current = fitness_cache[tuple(x_i.values())] if tuple(x_i.values()) in fitness_cache else objective_function(list(x_i.values()))
+            fitness_cache[tuple(x_i.values())] = fitness_current
+            
+            fitness_candidate = fitness_cache[tuple(v_i.values())] if tuple(v_i.values()) in fitness_cache else objective_function(list(v_i.values()))
+            fitness_cache[tuple(v_i.values())] = fitness_candidate
+            
             if fitness_candidate < fitness_current:
-                rabbits[i] = dict(zip(search_space.keys(), v_i))
+                rabbits[i] = v_i
+        
+        # Update the best rabbit and best fitness after all rabbits have moved
+        fitnesses = [fitness_cache[tuple(rabbit.values())] for rabbit in rabbits]
+        min_fitness = min(fitnesses)
+        if min_fitness < best_fitness:
+            best_fitness = min_fitness
+            best_rabbit = rabbits[fitnesses.index(min_fitness)]
     
     return best_rabbit, best_fitness

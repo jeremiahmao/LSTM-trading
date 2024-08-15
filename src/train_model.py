@@ -3,8 +3,9 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from util.model_training_util import create_lstm_model, artificial_rabbits_optimization
 from build_features import load_combined_sequences
-from constants.constants import TIME_STEP
+from constants.constants import TIME_STEP, NUM_FEATURES
 import os
+import time
 
 # Set TensorFlow to use GPU 0
 gpus = tf.config.list_physical_devices('GPU')
@@ -12,6 +13,7 @@ if gpus:
     try:
         tf.config.set_visible_devices(gpus[0], 'GPU')
     except RuntimeError as e:
+        print("FAILED")
         print(e)
 
 # Stock dataset
@@ -25,10 +27,11 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.35, random
 
 # Define the objective function
 def objective_function(params):
+    print('running obj func')
     lstm_units, dropout_rate, num_layers, batch_size, epochs = params
     
     model = create_lstm_model(
-        input_shape=(TIME_STEP, 9),  # 120 timesteps, 9 features
+        input_shape=(TIME_STEP, NUM_FEATURES),
         lstm_units=int(lstm_units),
         dropout_rate=dropout_rate,
         num_layers=int(num_layers)
@@ -41,22 +44,26 @@ def objective_function(params):
 
 # Define the search space for ARO
 search_space = {
-    'lstm_units': (50, 200),        # Adjust the range as needed
+    'lstm_units': (50, 256),        # Adjust the range as needed
     'dropout_rate': (0.1, 0.5),     # Dropout rate range
-    'num_layers': (1, 4),           # Number of LSTM layers
+    'num_layers': (1, 3),           # Number of LSTM layers
     'batch_size': (16, 64),         # Batch size range
     'epochs': (10, 50)              # Number of epochs
 }
 
+
+start_time = time.time()
 # Run ARO to optimize the LSTM Network
 best_hyperparameters, best_fitness = artificial_rabbits_optimization(objective_function, search_space)
+end_time = time.time()
+print(f"Execution time (artificial_rabbits_optimization): {end_time - start_time} seconds")
 
 print("Best Hyperparameters:", best_hyperparameters)
 print("Best Validation Loss:", best_fitness)
 
 # Train the final LSTM model with optimized hyperparameters
 final_model = create_lstm_model(
-    input_shape=(TIME_STEP, 9),
+    input_shape=(TIME_STEP, NUM_FEATURES),
     lstm_units=int(best_hyperparameters['lstm_units']),
     dropout_rate=best_hyperparameters['dropout_rate'],
     num_layers=int(best_hyperparameters['num_layers'])

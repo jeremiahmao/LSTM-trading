@@ -1,4 +1,5 @@
 TIME_STEP = 120
+NUM_FEATURES = 10
 
 #trying to contain stocks that follow a normal growth and normal variation over time (not as high volatility), additionally IPO'd before 2013 June 1, since that is when we will start our data collection
 #data collection for training data will end 2023 June 1
@@ -24,20 +25,19 @@ TRAINING_SYMBOLS = [
     "DIS",    # The Walt Disney Co.
     "DOW",    # Dow Inc.
     "GE",     # General Electric (Industrial conglomerate, restructuring)
-    "GOOGL",  # Alphabet Inc. (Google)
+    "GOOG",  # Alphabet Inc. (Google)
     "GS",     # Goldman Sachs Group Inc.
     "HD",     # Home Depot Inc.
     "HON",    # Honeywell International Inc.
     "IBM",    # International Business Machines Corp.
     "INTC",   # Intel Corp.
     "JNJ",    # Johnson & Johnson
-    "JPM",    # JPMorgan Chase & Co.
     "KO",     # Coca-Cola Co.
     "LLY",    # Eli Lilly and Co.
     "MCD",    # McDonald's Corp.
     "META",   # Meta Platforms Inc. (Facebook, previously known as Facebook Inc.)
     "MMM",    # 3M Co.
-    "MRK",    # Merck & Co. Inc.
+    "MS",     # Morgan Stanley
     "MSFT",   # Microsoft Corp.
     "NFLX",   # Netflix Inc.
     "NKE",    # Nike Inc.
@@ -65,13 +65,11 @@ TRAINING_SYMBOLS = [
     "NOK",    # Nokia Corporation
     "NTR",    # Nutrien Ltd.
     "SAVA",   # Cassava Sciences Inc.
-    "TWNK",   # Hostess Brands Inc.
 
     # Meme stocks
     "GME",    # GameStop Corp.
     "AMC",    # AMC Entertainment Holdings Inc.
     "BB",     # BlackBerry Limited
-    "WISH",   # ContextLogic Inc.
     "PLTR",   # Palantir Technologies Inc.
 
     # Cyclic stocks

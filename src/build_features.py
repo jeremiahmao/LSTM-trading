@@ -6,7 +6,6 @@ import numpy as np
 import os
 from make_dataset import load_csv
 from constants.constants import TRAINING_SYMBOLS, TEST_SYMBOLS, TIME_STEP
-from sklearn.model_selection import train_test_split
 
 def create_preprocessed_merged_sequences(df: pd.DataFrame, time_step: int=120, target_column: str='adjusted close'):
     """
@@ -24,9 +23,9 @@ def create_preprocessed_merged_sequences(df: pd.DataFrame, time_step: int=120, t
     """
     X, y = [], []
     
-    # Replace NaN values in the sentiment column with 0
-    df['sentiment'] = df['sentiment'].fillna(0)
-    
+    # Replace NaN values in the sentiment column with 0 (Note: article count will still be scaled so that it doesn't overly affect results)
+    df[['sentiment', 'article count']] = df[['sentiment', 'article count']].fillna(0)
+
     # Extract feature columns excluding the sentiment column
     feature_columns = [col for col in df.columns if col != 'sentiment']
     
