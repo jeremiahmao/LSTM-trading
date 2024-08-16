@@ -5,17 +5,26 @@ import random
 
 def create_lstm_model(input_shape, lstm_units, dropout_rate, num_layers):
     model = Sequential()
+    
     for i in range(num_layers):
-        if i == 0:
+        if num_layers == 1:
+            # Only one LSTM layer, no need for return_sequences
+            model.add(LSTM(units=lstm_units, input_shape=input_shape))
+        elif i == 0:
+            # First LSTM layer, return_sequences=True
             model.add(LSTM(units=lstm_units, return_sequences=True, input_shape=input_shape))
         elif i == num_layers - 1:
+            # Last LSTM layer, no return_sequences
             model.add(LSTM(units=lstm_units))
         else:
+            # Intermediate LSTM layers, return_sequences=True
             model.add(LSTM(units=lstm_units, return_sequences=True))
+        
         model.add(Dropout(dropout_rate))
     
     model.add(Dense(1))  # Output layer for predicting stock price
     model.compile(optimizer='adam', loss='mse')
+    
     return model
 
 def detour_foraging(rabbit, search_space, T):

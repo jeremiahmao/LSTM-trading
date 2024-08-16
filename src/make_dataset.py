@@ -7,17 +7,21 @@ import time # for fetching historical news data
 
 import os
 from matplotlib import pyplot as plt
-from constants.constants import TRAINING_SYMBOLS, TEST_SYMBOLS
+from constants.constants import CANDLES_TRAINING_SYMBOLS, MERGED_TRAINING_SYMBOLS, MAX_REQUESTS_PER_MINUTE
 
-def fetch_data_with_retry(url, params=None, retries=5, backoff_factor=1):
+def fetch_data_with_retry(url, params, ticker, retries=5, backoff_factor=1):
     retried = False
     for i in range(retries):
         try:
             # Set connect and read timeouts separately to ensure the timeout works correctly
             response = requests.get(url, params=params, allow_redirects=True, timeout=(10, 30))
             response.raise_for_status()  # Check for HTTP errors
+            data = response.json()
+            if data.get("Information", "").startswith("Invalid inputs"):
+                raise ValueError(f"Invalid inputs for ticker: {ticker}")
+        
             if retried: print('Retry successful!')
-            return response.json()  # Return the JSON response if successful
+            return data  # Return the JSON response if successful
         except Exception as err:  # Catch any type of exception
             print(f"Error occurred: {err}")
             if i < retries - 1:  # Only retry if we haven't exhausted our retries
@@ -27,7 +31,7 @@ def fetch_data_with_retry(url, params=None, retries=5, backoff_factor=1):
                 time.sleep(wait_time)
             else:
                 print("All retry attempts failed.")
-                raise Exception(f"Failed to fetch data after {retries} attempts. Last error: {err}")
+                raise Exception(f"Failed to fetch {ticker} data after {retries} attempts. Last error: {err}")
 
 def test_tickers_sentiments(tickers: list):
     """
@@ -95,7 +99,7 @@ def fetch_candles_adjusted_data(symbol: str, interval: str = 'daily', outputsize
         'apikey': api_key
     }
     
-    data = fetch_data_with_retry(base_url, params=params)
+    data = fetch_data_with_retry(base_url, params=params, ticker=symbol)
     
     # Extract the relevant time series data
     time_series_key = list(data.keys())[1]  # The second key contains the time series data
@@ -130,7 +134,7 @@ def fetch_news_sentiment_data(req_count: int, tickers: str, start_date: datetime
     current_start_date = start_date
 
     # Rate limit parameters
-    max_requests_per_minute = 75
+    max_requests_per_minute = MAX_REQUESTS_PER_MINUTE
     request_count = req_count
     start_time = time.time()
     
@@ -150,7 +154,7 @@ def fetch_news_sentiment_data(req_count: int, tickers: str, start_date: datetime
         # Print request information
         print(f"Requesting data from {current_start_date.strftime('%Y-%m-%d')} to {current_end_date.strftime('%Y-%m-%d')}")
         
-        data = fetch_data_with_retry(base_url, params=params)
+        data = fetch_data_with_retry(base_url, params=params, ticker=tickers)
         
         # Check if the "Information" field starts with "Invalid inputs"
         if data.get("Information", "").startswith("Invalid inputs"):
@@ -237,7 +241,7 @@ def merge_candles_with_sentiments(candles_df, sentiments_df):
     pd.DataFrame: Merged DataFrame with an additional sentiment column.
     """
     # Merge on date using a left join
-    merged_df = pd.merge(candles_df, sentiments_df, on='date', how='left')
+    merged_df = pd.merge(candles_df, sentiments_df, on='date', how='inner')
     
     return merged_df
 
@@ -269,33 +273,63 @@ def load_csv(local_path: str) -> pd.DataFrame:
     return df
 
 
-#generating data for this project
-
-
+# generating data for this project
 if __name__ == "__main__":
 
     dirname = os.path.dirname(__file__)
 
-    start_date = datetime(2013, 6, 1)
-    end_date = datetime(2023, 6, 1)
-
-    request_count = 0
+    end_date = datetime(2023, 6, 1) #everything after will be used in testing, end date must be after 2020/6/1
 
     # print(test_tickers_sentiments(TRAINING_SYMBOLS))
     # import sys
     # sys.exit()
 
-    #Code to test that all tickers are valid in Alphavantage:  print(test_tickers(TRAINING_SYMBOLS))
+    print(f"\nStarting candles generation.\n")
+    # Rate limit parameters
+    max_requests_per_minute = MAX_REQUESTS_PER_MINUTE
+    request_count = 0
+    start_time = time.time()
 
-    for s in TRAINING_SYMBOLS:
+    for s in CANDLES_TRAINING_SYMBOLS:
 
-        # start_time = time.time()
+        candles_relative_path = '../data/raw/' + s + '_c.csv'
+        candles_local_path = os.path.join(dirname, candles_relative_path)
 
-        # # Perform your loop body tasks here
-        # print(f"Loop iteration {s} started")
+        if os.path.isfile(candles_local_path):
+            print(f"File exists: {s:5} candles data")
+        else:
+            request_count +=1
+            print(f'Current request count: {request_count}')
 
-        print(f"\nStarting data generation for {s}.")
+            interval = 'daily'
+            candles = fetch_candles_adjusted_data(s, interval, outputsize="full")
+            filtered_candles = candles.loc[:end_date]
 
+            print(f"Saving file: {s} candles data")
+            save_data(filtered_candles, candles_local_path)
+    
+            # Check if rate limit has been reached
+            if request_count >= max_requests_per_minute:
+                elapsed_time = time.time() - start_time
+                if elapsed_time < 60:
+                    # Wait until a minute has passed since the first request in this batch
+                    wait_time = 60 - elapsed_time
+                    print(f"Rate limit hit. Sleeping for {wait_time:.2f} seconds.")
+                    time.sleep(wait_time)
+
+                # Reset counters
+                request_count = 0
+                start_time = time.time()
+    
+    print(f"\nFinished candles generation.\n")
+
+    print("------------------")
+    
+    print(f"\nStarting merged generation.\n")
+
+    request_count = 0
+    for s in MERGED_TRAINING_SYMBOLS:
+        
         # Candles Data Saved
         candles_relative_path = '../data/raw/' + s + '_c.csv'
         candles_local_path = os.path.join(dirname, candles_relative_path)
@@ -303,10 +337,13 @@ if __name__ == "__main__":
         if os.path.isfile(candles_local_path):
             print(f"File exists: {s} candles data")
         else:
+            
             request_count +=1
+            print(f'Current request count: {request_count}')
+
             interval = 'daily'
             candles = fetch_candles_adjusted_data(s, interval, outputsize="full")
-            filtered_candles = candles.loc[start_date:end_date]
+            filtered_candles = candles.loc[:end_date]
 
             print(f"Saving file: {s} candles data")
             save_data(filtered_candles, candles_local_path)
@@ -318,17 +355,17 @@ if __name__ == "__main__":
         if os.path.isfile(sentiments_local_path):
             print(f"File exists: {s} news sentiments data")
         else:
-            rc, sentiments = fetch_news_sentiment_data(request_count, s, start_date=start_date, end_date=end_date)
+            rc, sentiments = fetch_news_sentiment_data(request_count, s, start_date= datetime(2022, 2, 27), end_date=end_date)
             request_count = rc
             print(f"Saving file: {s} news sentiments data")
             save_data(sentiments, sentiments_local_path)
 
         # Merged Dataset Saved
-        merged_relative_path = '../data/interim/' + s + '_merged.csv'
+        merged_relative_path = '../data/merged/' + s + '_merged.csv'
         merged_local_path = os.path.join(dirname, merged_relative_path)
 
         if os.path.isfile(merged_local_path):
-            print(f"File exists: {s} merged data")
+            print(f"File exists: {s} merged data\n")
         else:
             # Reload candles and sentiments
             candles = load_csv(candles_local_path)
@@ -339,27 +376,7 @@ if __name__ == "__main__":
             print(f"Saving file: {s} merged data")
             save_data(merged, merged_local_path)
 
-            print(f"Finished data generation for {s}.")
-
-            # # Calculate how long the loop body took
-            # elapsed_time = time.time() - start_time
-
-            # # Determine how much time to wait to round up to the nearest minute
-            # extra = elapsed_time % 60
-            # if extra != 0:
-            #     # Round up to the nearest minute
-            #     time_to_wait = 60 - extra
-            #     print(f'{s} iteration waiting to nearest minute')
-            #     # Sleep for the calculated time
-            #     time.sleep(time_to_wait)
-
-            # print(f"Loop iteration {s} ended after {time.time() - start_time} seconds")
-
-
-    # #Load from CSV and print the first few rows
-    # df_loaded = load_csv(local_path)
-    # print(df_loaded.head())
-
-    # df2 = df_loaded.reset_index()['close']
-    # plt.plot(df2)
-    # plt.show()
+            print(f"Finished merged generation for {s}.\n")
+        
+    
+    print(f"Finished merged generation.")

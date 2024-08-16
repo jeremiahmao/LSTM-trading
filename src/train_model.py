@@ -44,7 +44,7 @@ def objective_function(params):
 
 # Define the search space for ARO
 search_space = {
-    'lstm_units': (50, 256),        # Adjust the range as needed
+    'lstm_units': (40, 80),        # Adjust the range as needed
     'dropout_rate': (0.1, 0.5),     # Dropout rate range
     'num_layers': (1, 3),           # Number of LSTM layers
     'batch_size': (16, 64),         # Batch size range

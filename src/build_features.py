@@ -1,13 +1,88 @@
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import numpy as np
-
-#for testing
 import os
 from make_dataset import load_csv
-from constants.constants import TRAINING_SYMBOLS, TEST_SYMBOLS, TIME_STEP
+from constants.constants import MERGED_TRAINING_SYMBOLS, CANDLES_TRAINING_SYMBOLS, CANDLES_TIME_STEP, MERGED_TIME_STEP
 
-def create_preprocessed_merged_sequences(df: pd.DataFrame, time_step: int=120, target_column: str='adjusted close'):
+def create_preprocessed_candles_sequences(df: pd.DataFrame, time_step: int=CANDLES_TIME_STEP, target_column: str='adjusted close'):
+    """
+    Create sequences of stock data for LSTM training, with scaling applied within each time_step window.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing stock data with candles in chronological order. The 'date' should be the index.
+    time_step (int): Number of days to include in each feature sequence.
+    target_column (str): Column name for the target label (closing price the next day).
+
+    Returns:
+    np.array: X (features) array of shape (num_samples, time_step, num_features).
+    np.array: y (labels) array of shape (num_samples,).
+    """
+    X, y = [], []
+
+    # Iterate through the DataFrame to create sequences
+    for i in range(len(df) - time_step):
+        # Extract the sequence of data for the current time_step
+        sequence = df.iloc[i:i + time_step].copy()
+        
+        # Initialize the scaler and scale the entire sequence
+        scaler = MinMaxScaler()
+        sequence_scaled = scaler.fit_transform(sequence)
+        
+        # Append the scaled sequence and corresponding label
+        X.append(sequence_scaled)
+        y.append(df.iloc[i + time_step][target_column])
+    
+    return np.array(X), np.array(y)
+
+def save_candles_sequences_to_files(symbols, candles_relative_dir = '../data/raw/', save_relative_dir = '../data/interim/', time_step=CANDLES_TIME_STEP, target_column='adjusted close'):
+    """
+    Save preprocessed sequences to individual files for each symbol.
+
+    Parameters:
+    symbols (list): List of stock symbols to process.
+    save_dir (str): Directory path to save the individual sequence files.
+    time_step (int): Number of days to include in each feature sequence.
+    target_column (str): Column name for the target label (closing price the next day).
+    """
+    dirname = os.path.dirname(__file__)
+    save_dir = os.path.join(dirname, save_relative_dir)
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    
+    for s in symbols:
+
+        X_file = os.path.join(save_dir, f'{s}_X.npy')
+        y_file = os.path.join(save_dir, f'{s}_y.npy')
+        
+        # Check if files already exist
+        if os.path.isfile(X_file) and os.path.isfile(y_file):
+            print(f"Candles files already exist for {s:6}, skipping individual sequences generation.")
+            continue
+
+        dirname = os.path.dirname(__file__)
+        candles_relative_path = candles_relative_dir + s + '_c.csv'
+        candles_local_path = os.path.join(dirname, candles_relative_path)
+
+        # Check if file exists
+        if not os.path.isfile(candles_local_path):
+            print(f"File missing: {s} candles data")
+            continue
+
+        # Load from CSV
+        df = load_csv(candles_local_path)
+        print(f"Processing {s} candles...")
+
+        X, y = create_preprocessed_merged_sequences(df=df, time_step=time_step, target_column=target_column)
+
+        # Save X and y to individual files
+        np.save(X_file, X)
+        np.save(y_file, y)
+
+    print(f"Individual candles sequences saved to {save_dir}")
+
+def create_preprocessed_merged_sequences(df: pd.DataFrame, time_step: int=MERGED_TIME_STEP, target_column: str='adjusted close'):
     """
     Create sequences of stock data for LSTM training, with scaling applied within each time_step window,
     excluding the specified column from scaling and replacing NaN values in the excluded column with 0.
@@ -22,9 +97,6 @@ def create_preprocessed_merged_sequences(df: pd.DataFrame, time_step: int=120, t
     np.array: y (labels) array of shape (num_samples,).
     """
     X, y = [], []
-    
-    # Replace NaN values in the sentiment column with 0 (Note: article count will still be scaled so that it doesn't overly affect results)
-    df[['sentiment', 'article count']] = df[['sentiment', 'article count']].fillna(0)
 
     # Extract feature columns excluding the sentiment column
     feature_columns = [col for col in df.columns if col != 'sentiment']
@@ -51,7 +123,7 @@ def create_preprocessed_merged_sequences(df: pd.DataFrame, time_step: int=120, t
     
     return np.array(X), np.array(y)
 
-def save_sequences_to_files(symbols, merged_relative_dir = '../data/interim/', save_relative_dir = '../data/processed_individual/', time_step=120, target_column='adjusted close'):
+def save_merged_sequences_to_files(symbols, merged_relative_dir = '../data/merged/', save_relative_dir = '../data/interim_merged/', time_step=MERGED_TIME_STEP, target_column='adjusted close'):
     """
     Save preprocessed sequences to individual files for each symbol.
 
@@ -69,12 +141,12 @@ def save_sequences_to_files(symbols, merged_relative_dir = '../data/interim/', s
     
     for s in symbols:
 
-        X_file = os.path.join(save_dir, f'{s}_X.npy')
-        y_file = os.path.join(save_dir, f'{s}_y.npy')
+        X_file = os.path.join(save_dir, f'{s}_X_merged.npy')
+        y_file = os.path.join(save_dir, f'{s}_y_merged.npy')
         
         # Check if files already exist
         if os.path.isfile(X_file) and os.path.isfile(y_file):
-            print(f"Files already exist for {s}, skipping individual sequences generation.")
+            print(f"Merged files already exist for {s:6}, skipping individual sequences generation.")
             continue
 
         dirname = os.path.dirname(__file__)
@@ -88,17 +160,17 @@ def save_sequences_to_files(symbols, merged_relative_dir = '../data/interim/', s
 
         # Load from CSV
         df = load_csv(merged_local_path)
-        print(f"Processing {s}...")
+        print(f"Processing {s} merged...")
 
         X, y = create_preprocessed_merged_sequences(df=df, time_step=time_step, target_column=target_column)
 
         # Save X and y to individual files
-        np.save(os.path.join(save_dir, f'{s}_X.npy'), X)
-        np.save(os.path.join(save_dir, f'{s}_y.npy'), y)
+        np.save(X_file, X)
+        np.save(y_file, y)
 
-    print(f"Individual sequences saved to {save_dir}")
+    print(f"Individual merged sequences saved to {save_dir}")
 
-def merge_sequences_from_files(source_relative_dir = '../data/processed_individual/', save_relative_dir = '../data/processed/'):
+def combine_sequences_from_files(source_relative_dir: str, save_relative_dir: str, candles: bool = True):
     """
     Merge preprocessed sequences from individual files into a single dataset.
 
@@ -114,28 +186,44 @@ def merge_sequences_from_files(source_relative_dir = '../data/processed_individu
         os.makedirs(save_dir)
     
     X_combined, y_combined = [], []
-
-    for file in os.listdir(source_dir):
-        if file.endswith('_X.npy'):
-            symbol = file.split('_')[0]
-            X = np.load(os.path.join(source_dir, file))
-            y = np.load(os.path.join(source_dir, f'{symbol}_y.npy'))
-            
-            X_combined.append(X)
-            y_combined.append(y)
+    if candles:
+        for file in os.listdir(source_dir):
+            if file.endswith('_X.npy'):
+                symbol = file.split('_')[0]
+                X = np.load(os.path.join(source_dir, file))
+                y = np.load(os.path.join(source_dir, f'{symbol}_y.npy'))
+                
+                X_combined.append(X)
+                y_combined.append(y)
+    else:
+        for file in os.listdir(source_dir):
+            if file.endswith('_X_merged.npy'):
+                symbol = file.split('_')[0]
+                X = np.load(os.path.join(source_dir, file))
+                y = np.load(os.path.join(source_dir, f'{symbol}_y_merged.npy'))
+                
+                X_combined.append(X)
+                y_combined.append(y)    
 
     # Concatenate all the arrays
     X_combined = np.concatenate(X_combined, axis=0)
     y_combined = np.concatenate(y_combined, axis=0)
 
     # Save the combined data
-    np.save(os.path.join(save_dir, 'X.npy'), X_combined)
-    np.save(os.path.join(save_dir, 'y.npy'), y_combined)
+    if candles:
+        x_path = os.path.join(save_dir, 'X.npy')
+        y_path = os.path.join(save_dir, 'y.npy')
+    else:
+        x_path = os.path.join(save_dir, 'X_merged.npy')
+        y_path = os.path.join(save_dir, 'y_merged.npy')
+    
+    np.save(x_path, X_combined)
+    np.save(y_path, y_combined)
 
     print(f"Combined data saved to {save_dir}")
 
 ## NOT RELATIVE PATH
-def load_combined_sequences(target_dir):
+def load_combined_sequences(target_dir, candles=True):
     """
     Load the combined sequence files from the specified directory.
 
@@ -146,24 +234,29 @@ def load_combined_sequences(target_dir):
     np.array: Combined X array of shape (num_samples, time_step, num_features).
     np.array: Combined y array of shape (num_samples,).
     """
-    X = np.load(os.path.join(target_dir, 'X.npy'))
-    y = np.load(os.path.join(target_dir, 'y.npy'))
+    if candles:
+        X = np.load(os.path.join(target_dir, 'X.npy'))
+        y = np.load(os.path.join(target_dir, 'y.npy'))
+    else:
+        X = np.load(os.path.join(target_dir, 'X_merged.npy'))
+        y = np.load(os.path.join(target_dir, 'y_merged.npy'))       
     return X, y
 
 if __name__ == "__main__":
 
+    ##THIS IS FOR CANDLES ONLY RIGHT NOW
+
     # Save individual sequences
-    save_sequences_to_files(symbols=TEST_SYMBOLS, merged_relative_dir = '../data/interim/', save_relative_dir = '../data/processed_individual/', time_step=TIME_STEP, target_column='adjusted close')
+    save_candles_sequences_to_files(symbols=CANDLES_TRAINING_SYMBOLS, candles_relative_dir= '../data/raw/', save_relative_dir = '../data/interim/', time_step=CANDLES_TIME_STEP, target_column='adjusted close')
 
-    # Merge and save combined sequences
-    merge_sequences_from_files(source_relative_dir = '../data/processed_individual/', save_relative_dir = '../data/processed/')
+    # # Merge and save combined sequences
+    # combine_sequences_from_files(source_relative_dir = '../data/interim/', save_relative_dir = '../data/processed/', candles=True)
     
-    # Load combined sequences
+    # # Load combined sequences
+    # dirname = os.path.dirname(__file__)
+    # source_dir = os.path.join(dirname, '../data/processed/')
 
-    dirname = os.path.dirname(__file__)
-    source_dir = os.path.join(dirname, '../data/processed/')
-
-    X_combined, y_combined = load_combined_sequences(source_dir)
+    # X_combined, y_combined = load_combined_sequences(source_dir, candles=True)
     
-    print(f"Loaded combined X: {X_combined.shape}")
-    print(f"Loaded combined y: {y_combined.shape}")
+    # print(f"Loaded combined X: {X_combined.shape}")
+    # print(f"Loaded combined y: {y_combined.shape}")
