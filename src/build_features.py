@@ -3,7 +3,9 @@ import pandas as pd
 import numpy as np
 import os
 from make_dataset import load_csv
-from constants.constants import MERGED_TRAINING_SYMBOLS, CANDLES_TRAINING_SYMBOLS, CANDLES_TIME_STEP, MERGED_TIME_STEP
+from constants.constants import MERGED_TRAINING_SYMBOLS, CANDLES_TRAINING_SYMBOLS
+from constants.constants import CANDLES_TIME_STEP, MERGED_TIME_STEP
+from constants.constants import CANDLES_NUM_FEATURES, MERGED_NUM_FEATURES
 
 def create_preprocessed_candles_sequences(df: pd.DataFrame, time_step: int=CANDLES_TIME_STEP, target_column: str='adjusted close'):
     """
@@ -170,13 +172,13 @@ def save_merged_sequences_to_files(symbols, merged_relative_dir = '../data/merge
 
     print(f"Individual merged sequences saved to {save_dir}")
 
-def combine_sequences_from_files(source_relative_dir: str, save_relative_dir: str, candles: bool = True):
+def combine_sequences_to_memmap(source_relative_dir: str, save_relative_dir: str, candles: bool = True, dtype=np.float32):
     """
-    Merge preprocessed sequences from individual files into a single dataset.
+    Merge preprocessed sequences from individual files into a single memory-mapped dataset.
 
     Parameters:
     source_dir (str): Directory path to read individual sequence files.
-    save_dir (str): Directory path to save the combined dataset.
+    save_dir (str): Directory path to save the combined memory-mapped dataset.
     """
     dirname = os.path.dirname(__file__)
     source_dir = os.path.join(dirname, source_relative_dir)
@@ -185,7 +187,38 @@ def combine_sequences_from_files(source_relative_dir: str, save_relative_dir: st
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     
-    X_combined, y_combined = [], []
+    # Determine total size for pre-allocation
+    total_samples = 0
+    sample_shape = None
+    
+    if candles:
+        for file in os.listdir(source_dir):
+            if file.endswith('_X.npy'):
+                X = np.load(os.path.join(source_dir, file))
+                total_samples += X.shape[0]
+                if sample_shape is None:
+                    sample_shape = X.shape[1:]
+    else:
+        for file in os.listdir(source_dir):
+            if file.endswith('_X_merged.npy'):
+                X = np.load(os.path.join(source_dir, file))
+                total_samples += X.shape[0]
+                if sample_shape is None:
+                    sample_shape = X.shape[1:]
+
+    # Create memory-mapped files
+    if candles:
+        x_path = os.path.join(save_dir, 'X_memmap.npy')
+        y_path = os.path.join(save_dir, 'y_memmap.npy')
+    else:
+        x_path = os.path.join(save_dir, 'X_merged_memmap.npy')
+        y_path = os.path.join(save_dir, 'y_merged_memmap.npy')
+    
+    X_combined = np.memmap(x_path, dtype=dtype, mode='w+', shape=(total_samples, *sample_shape))
+    y_combined = np.memmap(y_path, dtype=dtype, mode='w+', shape=(total_samples,))
+
+    # Write data to memory-mapped files
+    start_idx = 0
     if candles:
         for file in os.listdir(source_dir):
             if file.endswith('_X.npy'):
@@ -193,8 +226,10 @@ def combine_sequences_from_files(source_relative_dir: str, save_relative_dir: st
                 X = np.load(os.path.join(source_dir, file))
                 y = np.load(os.path.join(source_dir, f'{symbol}_y.npy'))
                 
-                X_combined.append(X)
-                y_combined.append(y)
+                end_idx = start_idx + X.shape[0]
+                X_combined[start_idx:end_idx] = X
+                y_combined[start_idx:end_idx] = y
+                start_idx = end_idx
     else:
         for file in os.listdir(source_dir):
             if file.endswith('_X_merged.npy'):
@@ -202,61 +237,79 @@ def combine_sequences_from_files(source_relative_dir: str, save_relative_dir: st
                 X = np.load(os.path.join(source_dir, file))
                 y = np.load(os.path.join(source_dir, f'{symbol}_y_merged.npy'))
                 
-                X_combined.append(X)
-                y_combined.append(y)    
+                end_idx = start_idx + X.shape[0]
+                X_combined[start_idx:end_idx] = X
+                y_combined[start_idx:end_idx] = y
+                start_idx = end_idx
 
-    # Concatenate all the arrays
-    X_combined = np.concatenate(X_combined, axis=0)
-    y_combined = np.concatenate(y_combined, axis=0)
+    # Flush to disk
+    X_combined.flush()
+    y_combined.flush()
 
-    # Save the combined data
-    if candles:
-        x_path = os.path.join(save_dir, 'X.npy')
-        y_path = os.path.join(save_dir, 'y.npy')
-    else:
-        x_path = os.path.join(save_dir, 'X_merged.npy')
-        y_path = os.path.join(save_dir, 'y_merged.npy')
-    
-    np.save(x_path, X_combined)
-    np.save(y_path, y_combined)
-
-    print(f"Combined data saved to {save_dir}")
+    print(f"Combined memory-mapped data saved to {save_dir}")
 
 ## NOT RELATIVE PATH
-def load_combined_sequences(target_dir, candles=True):
+def load_combined_sequences_memmap(target_dir, candles=True, dtype=np.float32):
     """
-    Load the combined sequence files from the specified directory.
+    Load the combined memory-mapped sequence files from the specified directory.
 
     Parameters:
     target_dir (str): Directory path to load the combined dataset.
+    dtype (np.dtype): Data type of the saved memory-mapped files.
 
     Returns:
-    np.array: Combined X array of shape (num_samples, time_step, num_features).
-    np.array: Combined y array of shape (num_samples,).
+    np.memmap: Combined X array as a memory-mapped file.
+    np.memmap: Combined y array as a memory-mapped file.
     """
     if candles:
-        X = np.load(os.path.join(target_dir, 'X.npy'))
-        y = np.load(os.path.join(target_dir, 'y.npy'))
+        X_path = os.path.join(target_dir, 'X_memmap.npy')
+        y_path = os.path.join(target_dir, 'y_memmap.npy')
+
+        # Load the memory-mapped files (make sure to specify the correct shape)
+        X = np.memmap(X_path, dtype=dtype, mode='r')
+        y = np.memmap(y_path, dtype=dtype, mode='r')
+
+        # Reshape if needed (for instance, if your data was flattened)
+        num_samples = X.shape[0] // (CANDLES_NUM_FEATURES * CANDLES_TIME_STEP)
+
+        if X.ndim == 1:
+            X = X.reshape((num_samples, CANDLES_TIME_STEP, CANDLES_NUM_FEATURES))
+        
+        return X, y
     else:
-        X = np.load(os.path.join(target_dir, 'X_merged.npy'))
-        y = np.load(os.path.join(target_dir, 'y_merged.npy'))       
-    return X, y
+        X_path = os.path.join(target_dir, 'X_merged_memmap.npy')
+        y_path = os.path.join(target_dir, 'y_merged_memmap.npy')
+        
+        # Load the memory-mapped files (make sure to specify the correct shape)
+        X = np.memmap(X_path, dtype=dtype, mode='r')
+        y = np.memmap(y_path, dtype=dtype, mode='r')
+
+        # Reshape if needed (for instance, if your data was flattened)
+        num_samples = X.shape[0] // (MERGED_TIME_STEP * MERGED_NUM_FEATURES)
+
+        if X.ndim == 1:
+            X = X.reshape((num_samples, CANDLES_TIME_STEP, CANDLES_NUM_FEATURES))
+        
+        return X, y
+    
+    
 
 if __name__ == "__main__":
 
     ##THIS IS FOR CANDLES ONLY RIGHT NOW
 
     # Save individual sequences
-    save_candles_sequences_to_files(symbols=CANDLES_TRAINING_SYMBOLS, candles_relative_dir= '../data/raw/', save_relative_dir = '../data/interim/', time_step=CANDLES_TIME_STEP, target_column='adjusted close')
+    save_candles_sequences_to_files(symbols=CANDLES_TRAINING_SYMBOLS, candles_relative_dir= '../data/raw/', 
+                                    save_relative_dir = '../data/interim/', time_step=CANDLES_TIME_STEP, target_column='adjusted close')
 
-    # # Merge and save combined sequences
-    # combine_sequences_from_files(source_relative_dir = '../data/interim/', save_relative_dir = '../data/processed/', candles=True)
+    # Merge and save combined sequences
+    combine_sequences_to_memmap(source_relative_dir = '../data/interim/', save_relative_dir = '../data/processed/', candles=True)
     
-    # # Load combined sequences
-    # dirname = os.path.dirname(__file__)
-    # source_dir = os.path.join(dirname, '../data/processed/')
+    # Load combined sequences
+    dirname = os.path.dirname(__file__)
+    source_dir = os.path.join(dirname, '../data/processed/')
 
-    # X_combined, y_combined = load_combined_sequences(source_dir, candles=True)
+    X_combined, y_combined = load_combined_sequences_memmap(source_dir, candles=True)
     
-    # print(f"Loaded combined X: {X_combined.shape}")
-    # print(f"Loaded combined y: {y_combined.shape}")
+    print(f"Loaded combined X: {X_combined.shape}")
+    print(f"Loaded combined y: {y_combined.shape}")

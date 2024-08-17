@@ -130,12 +130,23 @@ def artificial_rabbits_optimization(objective_function, search_space, num_rabbit
             else:
                 v_i = random_hiding(x_i, search_space, iterations, t, d)
             
-            # Update positions based on fitness
-            fitness_current = fitness_cache[tuple(x_i.values())] if tuple(x_i.values()) in fitness_cache else objective_function(list(x_i.values()))
-            fitness_cache[tuple(x_i.values())] = fitness_current
+            # Calculate fitness for current position
+            x_i_tuple = tuple(x_i.values())
+            if x_i_tuple not in fitness_cache:
+                fitness_current = objective_function(list(x_i.values()))
+                fitness_cache[x_i_tuple] = fitness_current
+                print(f"Fitness calculated for current position {x_i_tuple}: {fitness_current}")
+            else:
+                fitness_current = fitness_cache[x_i_tuple]
             
-            fitness_candidate = fitness_cache[tuple(v_i.values())] if tuple(v_i.values()) in fitness_cache else objective_function(list(v_i.values()))
-            fitness_cache[tuple(v_i.values())] = fitness_candidate
+            # Calculate fitness for candidate position
+            v_i_tuple = tuple(v_i.values())
+            if v_i_tuple not in fitness_cache:
+                fitness_candidate = objective_function(list(v_i.values()))
+                fitness_cache[v_i_tuple] = fitness_candidate
+                print(f"Fitness calculated for candidate position {v_i_tuple}: {fitness_candidate}")
+            else:
+                fitness_candidate = fitness_cache[v_i_tuple]
             
             if fitness_candidate < fitness_current:
                 rabbits[i] = v_i
